@@ -1,0 +1,58 @@
+import pandas as pd
+import dash
+from dash import dcc, html, Input, Output, dash_table
+import plotly.express as px
+
+# Sample dataframe
+df = pd.DataFrame({
+    'company_name': ['A', 'A', 'B', 'B', 'C', 'C'],
+    'date': ['2021-01', '2021-02', '2021-01', '2021-02', '2021-01', '2021-02'],
+    'sector': ['Tech', 'Tech', 'Finance', 'Finance', 'Health', 'Health'],
+    'sales': [100, 110, 120, 115, 130, 135],
+    'market_cap': [1000, 1100, 900, 920, 800, 820]
+})
+
+# Initialize Dash app
+app = dash.Dash(__name__)
+
+# App layout
+app.layout = html.Div([
+    dcc.Dropdown(
+        id='sector-dropdown',
+        options=[{'label': sector, 'value': sector} for sector in df['sector'].unique()],
+        value='Tech',  # default value
+        multi=False
+    ),
+    dcc.Graph(id='line-chart'),
+    dash_table.DataTable(
+        id='data-table',
+        columns=[{'name': i, 'id': i} for i in ['date', 'company_name', 'sector', 'ratio']],
+        page_size=10
+    )
+])
+
+@app.callback(
+    [Output('line-chart', 'figure'),
+     Output('data-table', 'data')],
+    [Input('sector-dropdown', 'value'),
+     Input('line-chart', 'relayoutData')]
+)
+def update_chart(selected_sector, relayoutData):
+    # Filter data by selected sector
+    filtered_df = df[df['sector'] == selected_sector]
+
+    # Calculate the sum of market caps divided by the sum of sales for each date
+    grouped_df = filtered_df.groupby('date').apply(lambda x: x['market_cap'].sum() / x['sales'].sum()).reset_index()
+    grouped_df.columns = ['date', 'ratio']
+
+    # Generate line chart
+    fig = px.line(grouped_df, x='date', y='ratio', title=f'Market Cap to Sales Ratio Over Time ({selected_sector})')
+
+    # Calculate market cap to sales ratio for each company and date
+    filtered_df['ratio'] = filtered_df['market_cap'] / filtered_df['sales']
+    table_data = filtered_df[['date', 'company_name', 'sector', 'ratio']].to_dict('records')
+
+    return fig, table_data
+
+if __name__ == '__main__':
+    app.run_server(debug=True)
