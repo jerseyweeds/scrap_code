@@ -1,20 +1,21 @@
-import dash
 import pandas as pd
+import dash
 from dash import dcc, html, Input, Output, State, dash_table
 import plotly.express as px
+from pandas.tseries.offsets import QuarterEnd
 
-# Sample dataframe with an additional 'pricing_symbol' column
+# Initialize Dash app
+app = dash.Dash(__name__)
+
+# Sample dataframe
 df = pd.DataFrame({
     'company_name': ['A', 'A', 'B', 'B', 'C', 'C'],
     'pricing_symbol': ['AA', 'AA', 'BB', 'BB', 'CC', 'CC'],
-    'date': ['2021-01', '2021-02', '2021-01', '2021-02', '2021-01', '2021-02'],
+    'date': ['2021-01-07', '2021-04-01', '2021-07-01', '2021-10-07', '2021-12-31', '2022-03-31'],
     'sector': ['Tech', 'Tech', 'Finance', 'Finance', 'Health', 'Health'],
     'sales': [100, 110, 120, 115, 130, 135],
     'market_cap': [1000, 1100, 900, 920, 800, 820]
 })
-
-# Initialize Dash app
-app = dash.Dash(__name__)
 
 # To store removed companies
 removed_companies = []
@@ -45,28 +46,34 @@ app.layout = html.Div([
     [State('sector-dropdown', 'value')]
 )
 def update_chart(selected_sector, n_clicks, current_sector):
-    global removed_companies  # Use global to persist the list across callbacks
-    
+    global removed_companies
+
     if n_clicks and n_clicks > 0:
         removed_companies = []  # Reset the list when reset button is clicked
         selected_sector = 'Tech'
-        
+
     filtered_df = df[df['sector'] == selected_sector]
     filtered_df = filtered_df[~filtered_df['company_name'].isin(removed_companies)]
-    
+
+    # Convert the 'date' column to datetime type
+    filtered_df['date'] = pd.to_datetime(filtered_df['date'])
+
+    # Filter to include only the last day of each quarter
+    filtered_df = filtered_df[filtered_df['date'].isin(pd.date_range(filtered_df['date'].min(), filtered_df['date'].max(), freq='Q'))]
+
     grouped_df = filtered_df.groupby('date').apply(lambda x: x['market_cap'].sum() / x['sales'].sum()).reset_index()
     grouped_df.columns = ['date', 'ratio']
-    
+
     fig = px.line(grouped_df, x='date', y='ratio', title=f'Market Cap to Sales Ratio Over Time ({selected_sector})')
-    
+
     filtered_df['ratio'] = filtered_df['market_cap'] / filtered_df['sales']
-    
+
     # Pivot the DataFrame using a multi-index ['company_name', 'pricing_symbol']
     pivoted_df = filtered_df.pivot(index=['company_name', 'pricing_symbol'], columns='date', values='ratio').reset_index()
-    
+
     table_data = pivoted_df.to_dict('records')
     columns = [{"name": str(col), "id": str(col)} for col in pivoted_df.columns]
-    
+
     return fig, table_data, columns, selected_sector
 
 if __name__ == '__main__':
