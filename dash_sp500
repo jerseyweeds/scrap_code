@@ -1,0 +1,141 @@
+import dash
+import dash_core_components as dcc
+import dash_html_components as html
+import pandas as pd
+
+app = dash.Dash()
+
+# Load the S&P 500 data
+df = pd.read_csv('sp500_data.csv')
+
+# Calculate the market cap divided by the earnings for each company
+df['pe_ratio'] = df['market_cap_quarter_end'] / df['earnings_sum']
+
+# Create a list of unique sectors
+sectors = df['sector'].unique()
+
+# Create a Dash DropdownMenu
+sector_selector = dcc.DropdownMenu(
+    id='sector-selector',
+    options=[{'label': sector, 'value': sector} for sector in sectors],
+    label='Sector'
+)
+
+# Create a new Dash DataTable
+datatable = dcc.DataTable(
+    id='datatable',
+    columns=[
+        {'name': 'Company', 'id': 'company'},
+        {'name': 'Market Cap', 'id': 'market_cap_quarter_end'},
+        {'name': 'Earnings', 'id': 'earnings_sum'},
+        {'name': 'PE Ratio', 'id': 'pe_ratio'},
+    ],
+    data=df.to_dict('records'),
+    selectable=True,
+    row_selectable='multi'
+)
+
+# Create a new Dash Button
+reset_button = html.Button('Reset Chart', id='reset-button')
+
+# Create a line chart using the quintiles as the legend
+earnings_pe_ratio_chart = dcc.Graph(
+    id='earnings-pe-ratio-chart',
+    figure={
+        'data': [
+            {
+                'x': df['quarter_year'],
+                'y': df['pe_ratio'],
+                'type': 'line',
+                'name': company
+            } for company in df['company'].unique()
+        ],
+        'layout': {
+            'title': 'Earnings PE Ratio by Quintile (Last 5 Years)',
+            'xaxis': {
+                'title': 'Quarter-Year',
+                'tickmode': 'array',
+                'tickvals': df['quarter_year'].unique(),
+                'ticktext': df['quarter_year'].unique()
+            },
+            'yaxis': {
+                'title': 'Earnings PE Ratio'
+            },
+            'legend': {
+                'title': 'Quintile'
+            }
+        }
+    }
+)
+
+# Add a callback to update the line chart when the DataTable selection changes
+@app.callback(
+    Output('earnings-pe-ratio-chart', 'figure'),
+    Input('datatable', 'selected_rows')
+)
+def update_line_chart(selected_rows):
+    # Create a new DataFrame with the selected companies
+    df_filtered = df.iloc[selected_rows]
+
+    # Update the line chart data
+    earnings_pe_ratio_chart['data'] = [
+        {
+            'x': df_filtered['quarter_year'],
+            'y': df_filtered['pe_ratio'],
+            'type': 'line',
+            'name': company
+        } for company in df_filtered['company'].unique()
+    ]
+
+    return earnings_pe_ratio_chart
+
+# Add a callback to update the line chart when the DropdownMenu selection changes
+@app.callback(
+    Output('earnings-pe-ratio-chart', 'figure'),
+    Input('sector-selector', 'value')
+)
+def update_line_chart(sector):
+    # Filter the DataFrame to only include companies in the selected sector
+    df_filtered = df[df['sector'] == sector]
+
+    # Update the line chart data
+    earnings_pe_ratio_chart['data'] = [
+        {
+            'x': df_filtered['quarter_year'],
+            'y': df_filtered['pe_ratio'],
+            'type': 'line',
+            'name': company
+        } for company in df_filtered['company'].unique()
+    ]
+
+    return earnings_pe_ratio_chart
+
+# Add a callback to reset the line chart when the Button is clicked
+@app.callback(
+    Output('earnings-pe-ratio-chart', 'figure'),
+    Input('reset-button', 'n_clicks')
+)
+def reset_line_chart(n_clicks):
+    # Update the line chart data to include all companies
+    earnings_pe_ratio_chart['data'] = [
+        {
+            'x': df['quarter_year'],
+            'y': df['pe_ratio'],
+            'type': 'line',
+            'name': company
+        } for company in df['company'].unique()
+    ]
+
+    return earnings_pe_ratio_chart
+
+# Add the Dash components to the layout
+app.layout = html.Div([
+    sector_selector,
+    datatable,
+    earnings_pe_ratio_chart,
+    reset_button
+])
+
+# Run the Dash app
+if __name__ == '__main__':
+    app.run_server(debug=True)
