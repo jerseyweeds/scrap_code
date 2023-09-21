@@ -1,22 +1,20 @@
+from jupyter_dash import JupyterDash
 import pandas as pd
-import dash
 from dash import dcc, html, Input, Output, State, dash_table
 import plotly.express as px
 
-# Sample dataframe
+# Sample dataframe with additional 'pricing_symbol' column
 df = pd.DataFrame({
     'company_name': ['A', 'A', 'B', 'B', 'C', 'C'],
+    'pricing_symbol': ['AA', 'AA', 'BB', 'BB', 'CC', 'CC'],
     'date': ['2021-01', '2021-02', '2021-01', '2021-02', '2021-01', '2021-02'],
     'sector': ['Tech', 'Tech', 'Finance', 'Finance', 'Health', 'Health'],
     'sales': [100, 110, 120, 115, 130, 135],
     'market_cap': [1000, 1100, 900, 920, 800, 820]
 })
 
-# Initialize Dash app
-app = dash.Dash(__name__)
-
-# To store removed companies
-removed_companies = []
+# Initialize JupyterDash app
+app = JupyterDash(__name__)
 
 # App layout
 app.layout = html.Div([
@@ -31,14 +29,11 @@ app.layout = html.Div([
     dash_table.DataTable(
         id='data-table',
         page_size=10,
-        style_cell_conditional=[
-            {
-                'if': {'column_id': 'company_name'},
-                'textAlign': 'left',
-            },
-        ],
     )
 ])
+
+# To store removed companies
+removed_companies = []
 
 @app.callback(
     [Output('line-chart', 'figure'),
@@ -46,15 +41,14 @@ app.layout = html.Div([
      Output('data-table', 'columns'),
      Output('sector-dropdown', 'value')],
     [Input('sector-dropdown', 'value'),
-     Input('line-chart', 'relayoutData'),
      Input('reset-button', 'n_clicks')],
     [State('sector-dropdown', 'value')]
 )
-def update_chart(selected_sector, relayoutData, n_clicks, current_sector):
-    global removed_companies  # Use global to persist the list across callbacks
-
+def update_chart(selected_sector, n_clicks, current_sector):
+    global removed_companies
+    
     if n_clicks and n_clicks > 0:
-        removed_companies = []  # Reset list when reset button is clicked
+        removed_companies = []  # Reset the list
         selected_sector = 'Tech'
 
     filtered_df = df[df['sector'] == selected_sector]
@@ -67,41 +61,12 @@ def update_chart(selected_sector, relayoutData, n_clicks, current_sector):
 
     filtered_df['ratio'] = filtered_df['market_cap'] / filtered_df['sales']
 
-    # Pivot the DataFrame
-    pivoted_df = filtered_df.pivot(index='company_name', columns='date', values='ratio').reset_index()
+    # Pivot the DataFrame using a multi-index ['company_name', 'pricing_symbol']
+    pivoted_df = filtered_df.pivot(index=['company_name', 'pricing_symbol'], columns='date', values='ratio').reset_index()
     table_data = pivoted_df.to_dict('records')
-
-    # Update DataTable columns based on pivoted data
     columns = [{"name": str(col), "id": str(col)} for col in pivoted_df.columns]
-
-    # Add a 'Remove' button next to each company
-    for row in table_data:
-        row['action'] = html.Button('Remove', id={'type': 'remove-button', 'index': row['company_name']})
-
-    columns.append({'name': 'Action', 'id': 'action', 'type': 'any'})
-
+    
     return fig, table_data, columns, selected_sector
 
-
-@app.callback(
-    Output('data-table', 'data'),
-    Input({'type': 'remove-button', 'index': dash.dependencies.ALL}, 'n_clicks'),
-    [State('data-table', 'data'),
-     State('sector-dropdown', 'value')]
-)
-def remove_company(n_clicks, rows, selected_sector):
-    global removed_companies
-    changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
-
-    if 'index' in changed_id:
-        company_to_remove = changed_id.split('.')[0].split('index')[-1][2:-2]  # Extract company name from the ID
-        removed_companies.append(company_to_remove)
-
-        # Remove company from the displayed data
-        updated_rows = [row for row in rows if row['company_name'] != company_to_remove]
-
-        return updated_rows
-
-
-if __name__ == '__main__':
-    app.run_server(debug=True)
+# Run the app in the notebook
+app.run_server(mode='inline')
