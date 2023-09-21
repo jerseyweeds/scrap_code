@@ -1,6 +1,6 @@
 import pandas as pd
 import dash
-from dash import dcc, html, Input, Output, dash_table
+from dash import dcc, html, Input, Output, State, dash_table
 import plotly.express as px
 
 # Sample dataframe
@@ -23,21 +23,29 @@ app.layout = html.Div([
         value='Tech',  # default value
         multi=False
     ),
+    html.Button('Reset', id='reset-button'),
     dcc.Graph(id='line-chart'),
     dash_table.DataTable(
         id='data-table',
-        columns=[{'name': i, 'id': i} for i in ['date', 'company_name', 'sector', 'ratio']],
         page_size=10
     )
 ])
 
 @app.callback(
     [Output('line-chart', 'figure'),
-     Output('data-table', 'data')],
+     Output('data-table', 'data'),
+     Output('data-table', 'columns'),
+     Output('sector-dropdown', 'value')],
     [Input('sector-dropdown', 'value'),
-     Input('line-chart', 'relayoutData')]
+     Input('line-chart', 'relayoutData'),
+     Input('reset-button', 'n_clicks')],
+    [State('sector-dropdown', 'value')]
 )
-def update_chart(selected_sector, relayoutData):
+def update_chart(selected_sector, relayoutData, n_clicks, current_sector):
+    # Check if reset button was clicked
+    if n_clicks and n_clicks > 0:
+        selected_sector = 'Tech'  # Set to default value
+
     # Filter data by selected sector
     filtered_df = df[df['sector'] == selected_sector]
 
@@ -50,9 +58,15 @@ def update_chart(selected_sector, relayoutData):
 
     # Calculate market cap to sales ratio for each company and date
     filtered_df['ratio'] = filtered_df['market_cap'] / filtered_df['sales']
-    table_data = filtered_df[['date', 'company_name', 'sector', 'ratio']].to_dict('records')
 
-    return fig, table_data
+    # Pivot DataFrame for transposed table
+    pivoted_df = filtered_df.pivot(index='company_name', columns='date', values='ratio').reset_index()
+
+    # Prepare data and columns for DataTable
+    table_data = pivoted_df.to_dict('records')
+    table_columns = [{'name': str(i), 'id': str(i)} for i in pivoted_df.columns]
+
+    return fig, table_data, table_columns, selected_sector
 
 if __name__ == '__main__':
     app.run_server(debug=True)
