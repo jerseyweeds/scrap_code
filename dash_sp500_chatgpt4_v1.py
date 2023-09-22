@@ -10,6 +10,9 @@ import plotly.express as px
 import pandas as pd
 import numpy as np
 
+pd.set_option('display.float_format', '{:.10f}'.format)
+
+
 # Simulating 52-week data
 weeks = pd.date_range(start='2022-01-01', periods=52, freq='W')
 companies = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'FB', 'TSLA', 'NVDA', 'JPM', 'V', 'MA']
@@ -26,6 +29,9 @@ for company, sector in zip(companies, sectors):
         data.append([company, sector, week, earning, m_cap, pe])
 
 original_df = pd.DataFrame(data, columns=['Company', 'Sector', 'Week', 'Earnings', 'Market_Cap', 'PE_Ratio'])
+original_df['PE_Ratio'] = original_df['PE_Ratio'].round(1)
+
+
 df = original_df.copy()
 
 # Sort the sectors
@@ -34,25 +40,30 @@ sorted_sectors = sorted(df['Sector'].unique())
 app = dash.Dash(__name__)
 
 app.layout = html.Div([
-    dcc.Graph(id='graph'),
-    dcc.Dropdown(
-        id='company-dropdown',
-        options=[{'label': c, 'value': c} for c in companies],
-        value=companies,
-        multi=True
-    ),
     dcc.Dropdown(
         id='sector-dropdown',
         options=[{'label': s, 'value': s} for s in sorted_sectors],
         value=sorted_sectors,
         multi=True
     ),
+    
+    dcc.Graph(id='graph'),
+    
+    dcc.Dropdown(
+        id='company-dropdown',
+        options=[{'label': c, 'value': c} for c in companies],
+        value=companies,
+        multi=True
+    ),
+    
+  
     dash_table.DataTable(
         id='table',
         style_table={'overflowX': 'scroll'},
         page_size=20,
         row_selectable='multi'
     ),
+    
     html.Button('Remove Selected Rows', id='remove-button'),
     html.Button('Reset', id='reset-button'),
     html.Button("Download Data", id="btn_csv"),
@@ -106,6 +117,7 @@ def update(selected_companies, selected_sectors, n_remove_clicks, n_reset_clicks
         index=['Sector', 'Company'],
         columns='Week'
     ).reset_index()
+    
 
     # Cast the Week columns to string with format YYYY-MM-DD
     pivoted_df.columns = [str(col).split(' ')[0] if isinstance(col, pd.Timestamp) else str(col) for col in pivoted_df.columns]
@@ -130,4 +142,4 @@ def generate_csv(n_clicks, table_data):
     return send_data_frame(df_to_download.to_csv, "download.csv", index=False)
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(host='0.0.0.0', port='3000')
