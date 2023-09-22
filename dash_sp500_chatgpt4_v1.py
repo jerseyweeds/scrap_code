@@ -85,7 +85,14 @@ def update(selected_companies, selected_sectors, n_remove_clicks, n_reset_clicks
 
         if button_id == 'remove-button':
             if selected_rows is not None:
-                filtered_df = pd.DataFrame.from_dict(table_data).drop(selected_rows).reset_index(drop=True)
+                for i in sorted(selected_rows, reverse=True):
+                    del table_data[i]
+                # Convert back to DataFrame after removing rows
+                filtered_df = pd.DataFrame(table_data)
+                if 'Sector' in filtered_df.columns and 'Company' in filtered_df.columns:
+                    filtered_df = filtered_df.melt(id_vars=['Sector', 'Company'], var_name='Week', value_name='PE_Ratio')
+                else:
+                    return dash.no_update, dash.no_update, dash.no_update
         elif button_id == 'reset-button':
             filtered_df = original_df.copy()
 
@@ -107,6 +114,7 @@ def update(selected_companies, selected_sectors, n_remove_clicks, n_reset_clicks
     table_columns = [{'name': str(i), 'id': str(i)} for i in pivoted_df.columns]
 
     return fig, table_data, table_columns
+
 
 
 @app.callback(
