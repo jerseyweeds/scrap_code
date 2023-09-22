@@ -85,9 +85,7 @@ def update(selected_companies, selected_sectors, n_remove_clicks, n_reset_clicks
 
         if button_id == 'remove-button':
             if selected_rows is not None:
-                for i in sorted(selected_rows, reverse=True):
-                    del table_data[i]
-                filtered_df = pd.DataFrame.from_dict(table_data)
+                filtered_df = pd.DataFrame.from_dict(table_data).drop(selected_rows).reset_index(drop=True)
         elif button_id == 'reset-button':
             filtered_df = original_df.copy()
 
@@ -109,6 +107,7 @@ def update(selected_companies, selected_sectors, n_remove_clicks, n_reset_clicks
     table_columns = [{'name': str(i), 'id': str(i)} for i in pivoted_df.columns]
 
     return fig, table_data, table_columns
+
 
 @app.callback(
     Output("download", "data"),
