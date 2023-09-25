@@ -30,11 +30,11 @@ app = dash.Dash(__name__)
 # App layout
 app.layout = html.Div([
     html.H1("S&P 500 P/E Ratio Analysis"),
-    html.Label("Select Companies:"),
+    html.Label("Exclude Companies:"),
     dcc.Dropdown(
         id='company-dropdown',
         options=[{'label': company, 'value': company} for company in companies],
-        value=companies,
+        value=[],  # Start with no companies excluded
         multi=True
     ),
     html.Label("Select Sectors:"),
@@ -71,7 +71,7 @@ app.layout = html.Div([
     [State('table', 'selected_rows'),
      State('table', 'data')]
 )
-def update(selected_companies, selected_sectors, n_remove_clicks, n_reset_clicks, selected_rows, table_data):
+def update(excluded_companies, selected_sectors, n_remove_clicks, n_reset_clicks, selected_rows, table_data):
     global df
     ctx = dash.callback_context
 
@@ -88,7 +88,7 @@ def update(selected_companies, selected_sectors, n_remove_clicks, n_reset_clicks
             companies_to_remove = [row['Company'] for row in rows_to_remove]
             df = df[~df['Company'].isin(companies_to_remove)]
 
-        filtered_df = df[df['Company'].isin(selected_companies) & df['Sector'].isin(selected_sectors)]
+        filtered_df = df[~df['Company'].isin(excluded_companies) & df['Sector'].isin(selected_sectors)]
 
     quintile_labels = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5']
     filtered_df['Quintile'] = filtered_df.groupby('Date')['Market Cap'].transform(
@@ -101,8 +101,8 @@ def update(selected_companies, selected_sectors, n_remove_clicks, n_reset_clicks
     pivoted_df = filtered_df.pivot_table(index=['Sector', 'Company'], columns='Date', values='PE_Ratio').reset_index()
     summary_pivoted_df = quintile_df.pivot_table(index='Quintile', columns='Date', values='Market Cap').reset_index()
 
-    pivoted_df.columns = [str(col).split(' ')[0] if isinstance(col, pd.Timestamp) else str(col) for col in pivoted_df.columns]
-    summary_pivoted_df.columns = [str(col).split(' ')[0] if isinstance(col, pd.Timestamp) else str(col) for col in summary_pivoted_df.columns]
+    pivoted_df.columns = [str(col).split(' ')[0] for col in pivoted_df.columns]
+    summary_pivoted_df.columns = [str(col).split(' ')[0] for col in summary_pivoted_df.columns]
 
     table_data = pivoted_df.to_dict('records')
     table_columns = [{'name': str(i), 'id': str(i)} for i in pivoted_df.columns]
