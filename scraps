@@ -1,1 +1,8 @@
 aggregated_series = filtered_df.groupby('date').apply(lambda x: sum(x['market cap']) / sum(x['sales']))
+
+
+
+    end_of_quarter_dates = [date for date in dates if (date.month in [3, 6, 9, 12] and date.is_month_end)]
+
+    pivoted_df = filtered_df[filtered_df['Date'].isin(end_of_quarter_dates)].pivot_table(
+        index=['Sector', 'Company'], columns='Date', values='PE_Ratio').reset_index()
