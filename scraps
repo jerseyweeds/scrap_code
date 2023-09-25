@@ -1,0 +1,1 @@
+aggregated_series = filtered_df.groupby('date').apply(lambda x: sum(x['market cap']) / sum(x['sales']))
