@@ -1,64 +1,60 @@
 ### WORKING COPY ###
 # https://chat.openai.com/c/375cbf1a-3d07-4153-bd64-9a9d04a4cfcc
 import dash
-import dash_core_components as dcc
-import dash_html_components as html
-import dash_table
+from dash import dcc, html, dash_table
 from dash.dependencies import Input, Output, State
-import plotly.express as px
 import pandas as pd
 import numpy as np
+import plotly.express as px
 
-# Simulating 52-week data
-weeks = pd.date_range(start='2022-01-01', periods=52, freq='W')
-companies = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'FB', 'TSLA', 'NVDA', 'JPM', 'V', 'MA']
-sectors = ['Technology', 'Technology', 'Technology', 'Retail', 'Technology', 'Automotive', 'Technology', 'Finance', 'Finance', 'Finance']
+# Sample data generation
+np.random.seed(42)
+companies = ["Apple", "Google", "Microsoft", "Amazon", "Facebook", "Tesla", "Netflix", "Disney", "Zoom", "Slack"]
+sectors = ["Tech", "Entertainment", "Tech", "Retail", "Tech", "Automotive", "Entertainment", "Entertainment", "Tech", "Tech"]
 
-data = []
+dates = pd.date_range("2022-01-01", periods=52, freq="W")
+original_df = pd.DataFrame({
+    "Date": np.tile(dates, len(companies)),
+    "Company": np.repeat(companies, len(dates)),
+    "Sector": np.repeat(sectors, len(dates)),
+    "Earnings": np.random.rand(len(dates) * len(companies)) * 1e9,
+    "Market Cap": np.random.rand(len(dates) * len(companies)) * 1e11,
+})
+original_df["PE_Ratio"] = original_df["Market Cap"] / original_df["Earnings"]
 
-for company, sector in zip(companies, sectors):
-    earnings = np.random.uniform(20, 60, size=52)
-    market_cap = np.random.uniform(1000, 2500, size=52)
-
-    for week, earning, m_cap in zip(weeks, earnings, market_cap):
-        data.append([company, sector, week, earning, m_cap])
-
-original_df = pd.DataFrame(data, columns=['Company', 'Sector', 'Week', 'Earnings', 'Market_Cap'])
+global df
 df = original_df.copy()
-
-# Sort the sectors
-sorted_sectors = sorted(df['Sector'].unique())
 
 app = dash.Dash(__name__)
 
+# App layout
 app.layout = html.Div([
-    dcc.Graph(id='graph'),
+    html.H1("S&P 500 P/E Ratio Analysis"),
+    html.Label("Select Companies:"),
     dcc.Dropdown(
         id='company-dropdown',
-        options=[{'label': c, 'value': c} for c in companies],
+        options=[{'label': company, 'value': company} for company in companies],
         value=companies,
         multi=True
     ),
+    html.Label("Select Sectors:"),
     dcc.Dropdown(
         id='sector-dropdown',
-        options=[{'label': s, 'value': s} for s in sorted_sectors],
-        value=sorted_sectors,
+        options=[{'label': sector, 'value': sector} for sector in sorted(df['Sector'].unique())],
+        value=sorted(df['Sector'].unique()),
         multi=True
     ),
-    html.Button('Remove Selected Rows', id='remove-button'),
-    html.Button('Reset', id='reset-button'),
-    html.Div("Company Data Table"),
+    dcc.Graph(id='graph'),
+    html.Button('Remove Selected Rows', id='remove-button', n_clicks=0),
+    html.Button('Reset', id='reset-button', n_clicks=0),
     dash_table.DataTable(
         id='table',
-        style_table={'overflowX': 'scroll'},
-        page_size=20,
-        row_selectable='multi'
+        row_selectable='multi',
+        page_size=20
     ),
-    html.Div("Summary Data Table"),
+    html.H3("Quintile Summary"),
     dash_table.DataTable(
-        id='summary-table',
-        style_table={'overflowX': 'scroll'},
-        page_size=5
+        id='summary-table'
     )
 ])
 
@@ -76,68 +72,49 @@ app.layout = html.Div([
      State('table', 'data')]
 )
 def update(selected_companies, selected_sectors, n_remove_clicks, n_reset_clicks, selected_rows, table_data):
+    global df
     ctx = dash.callback_context
 
-    if not selected_companies or not selected_sectors:
-        selected_companies = companies
-        selected_sectors = sorted_sectors
-
     if not ctx.triggered:
-        filtered_df = original_df.copy()
+        filtered_df = df.copy()
     else:
         button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+        if button_id == 'reset-button':
+            df = original_df.copy()
+
+        if button_id == 'remove-button' and selected_rows is not None:
+            rows_to_remove = [table_data[idx] for idx in selected_rows]
+            companies_to_remove = [row['Company'] for row in rows_to_remove]
+            df = df[~df['Company'].isin(companies_to_remove)]
+
         filtered_df = df[df['Company'].isin(selected_companies) & df['Sector'].isin(selected_sectors)]
 
-        # ... [Rest of the button operations]
-
-    # Assign quintiles for each week based on 'Market_Cap'
-    filtered_df['Quintile'] = filtered_df.groupby('Week')['Market_Cap'].transform(
-        lambda x: pd.qcut(x, 5, labels=['Q1', 'Q2', 'Q3', 'Q4', 'Q5'])
+    quintile_labels = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5']
+    filtered_df['Quintile'] = filtered_df.groupby('Date')['Market Cap'].transform(
+        lambda x: pd.qcut(x, 5, labels=quintile_labels)
     )
 
-    # Calculate median market cap for each quintile and week
-    quintile_df = filtered_df.groupby(['Week', 'Quintile']).agg({
-        'Market_Cap': 'median'
-    }).reset_index()
+    quintile_df = filtered_df.groupby(['Date', 'Quintile']).sum().reset_index()
+    fig = px.line(quintile_df, x="Date", y="Market Cap", color="Quintile", title="Market Cap by Quintile Over Time")
 
-    # Plot
-    fig = px.line(quintile_df, x='Week', y='Market_Cap', color='Quintile', title='Median Market Cap by Quintile Over Time')
+    pivoted_df = filtered_df.pivot_table(index=['Sector', 'Company'], columns='Date', values='PE_Ratio').reset_index()
+    summary_pivoted_df = quintile_df.pivot_table(index='Quintile', columns='Date', values='Market Cap').reset_index()
 
-    # Pivot and reset index for the main table
-    pivoted_df = pd.pivot_table(
-        filtered_df,
-        values='Market_Cap',
-        index=['Sector', 'Company'],
-        columns='Week'
-    ).reset_index()
-
-    # Round numerical values to 1 decimal place and format columns
-    for col in pivoted_df.columns:
-        if isinstance(col, pd.Timestamp) or col in ['Market_Cap']:
-            pivoted_df[col] = pivoted_df[col].round(1)
     pivoted_df.columns = [str(col).split(' ')[0] if isinstance(col, pd.Timestamp) else str(col) for col in pivoted_df.columns]
+    summary_pivoted_df.columns = [str(col).split(' ')[0] if isinstance(col, pd.Timestamp) else str(col) for col in summary_pivoted_df.columns]
 
     table_data = pivoted_df.to_dict('records')
     table_columns = [{'name': str(i), 'id': str(i)} for i in pivoted_df.columns]
-
-    # Pivot and reset index for the summary table
-    summary_pivoted_df = pd.pivot_table(
-        quintile_df,
-        values='Market_Cap',
-        index=['Quintile'],
-        columns='Week'
-    ).reset_index()
-
-    # Round numerical values to 1 decimal place and format columns
-    for col in summary_pivoted_df.columns:
-        if isinstance(col, pd.Timestamp) or col in ['Market_Cap']:
-            summary_pivoted_df[col] = summary_pivoted_df[col].round(1)
-    summary_pivoted_df.columns = [str(col).split(' ')[0] if isinstance(col, pd.Timestamp) else str(col) for col in summary_pivoted_df.columns]
 
     summary_table_data = summary_pivoted_df.to_dict('records')
     summary_table_columns = [{'name': str(i), 'id': str(i)} for i in summary_pivoted_df.columns]
 
     return fig, table_data, table_columns, summary_table_data, summary_table_columns
+
+# if __name__ == '__main__':
+#     app.run_server(debug=True)
+
 
 if __name__ == '__main__':
     app.run(jupyter_mode="external", port='22222')
