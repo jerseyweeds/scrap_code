@@ -24,8 +24,8 @@ sectors = ["Consumer Services", "Technology Services", "Consumer Non-Durables", 
 data = []
 
 for company, sector in zip(companies, sectors):
-    earnings = np.random.uniform(20, 60, size=52)
-    market_cap = np.random.uniform(1000, 2500, size=52)
+    earnings = np.random.uniform(20, 60, size=26)
+    market_cap = np.random.uniform(1000, 2500, size=26)
 
     for week, earning, m_cap in zip(weeks, earnings, market_cap):
         data.append([company, sector, week, earning, m_cap])
@@ -33,7 +33,6 @@ for company, sector in zip(companies, sectors):
 original_df = pd.DataFrame(data, columns=['Company', 'Sector', 'Week', 'Earnings', 'Market_Cap'])
 original_df['PE_Ratio'] = (original_df['Market_Cap'] / original_df['Earnings']).round(1)
 
-global df
 df = original_df.copy()
 
 
@@ -102,7 +101,6 @@ app.layout = html.Div([
 
 def update(selected_sectors, n_remove_clicks, n_reset_clicks, selected_rows, table_data):
     
-    global filtered_df
     filtered_df = original_df.copy()
 
     ctx = dash.callback_context
