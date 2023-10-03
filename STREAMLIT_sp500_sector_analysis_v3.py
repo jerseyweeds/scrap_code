@@ -2,6 +2,15 @@ import streamlit as st
 import altair as alt
 import pandas as pd
 import numpy as np
+import base64
+
+# Define function to download data
+def download_data(data, filename):
+    csv = data.to_csv(index=False)
+    b64 = base64.b64encode(csv.encode()).decode()  # Encode as base64
+    href = f'<a href="data:file/csv;base64,{b64}" download="{filename}.csv">Download {filename} Data</a>'
+    return href
+
 
 # Sample data generation
 np.random.seed(42)
@@ -19,6 +28,7 @@ df = pd.DataFrame({
     "FreeCashFlow": np.random.rand(len(dates) * len(companies)) * 1e9,
 })
 
+
 # Get sorted unique sectors and companies
 unique_sorted_sectors = sorted(df['Sector'].unique())
 unique_sorted_companies = sorted(df.groupby('Sector')['Company'].unique().apply(list).to_dict().values())
@@ -27,8 +37,8 @@ unique_sorted_companies = sorted(df.groupby('Sector')['Company'].unique().apply(
 excluded_columns = ['Company', 'Date', 'Sector']
 
 # Streamlit app
-st.title('S&P 500 Sector Analysis')
-st.sidebar.title('Select Numerator and Denominator')
+st.title('Valuation Multiple Analysis')
+st.sidebar.title('Select the Numerator and Denominator')
 
 # Create filtered lists of options for numerator and denominator
 numerator_options = df.columns.difference(excluded_columns)
@@ -79,19 +89,23 @@ for sector in selected_sectors:
 # Number of quantiles input
 num_qcuts = st.sidebar.number_input('Number of Quantiles:', min_value=1, value=5)
 
+
 # Define a function to update charts
 def update_charts():
+    global chart_data, quantile_chart_data, filtered_data  # Declare chart_data and quantile_chart_data as global variables
     filtered_data = df[df['Sector'].isin(selected_sectors) & ~df['Company'].isin(excluded_companies)].copy()  # Create a copy
     filtered_data.loc[:, 'Numeric_Numerator'] = pd.to_numeric(filtered_data[numerator], errors='coerce')
     filtered_data.loc[:, 'Numeric_Denominator'] = pd.to_numeric(filtered_data[denominator], errors='coerce')
     filtered_data = filtered_data.dropna(subset=['Numeric_Numerator', 'Numeric_Denominator'])
 
     chart_data = None  # Initialize chart_data as None
+    quantile_chart_data = None  # Initialize quantile_chart_data as None
 
     if not filtered_data.empty:
         chart_data = filtered_data.groupby(['Date', 'Sector']).agg({'Numeric_Numerator': 'sum', 'Numeric_Denominator': 'sum'})
         chart_data['Ratio'] = chart_data['Numeric_Numerator'] / chart_data['Numeric_Denominator']
         chart_data = chart_data.reset_index()
+        
 
         st.altair_chart(alt.Chart(chart_data).mark_line().encode(
             x=alt.X('Date:T', title='Date', axis=alt.Axis(format=("%b %Y"), labelAngle=-45)),
@@ -101,25 +115,51 @@ def update_charts():
         ).properties(
             width=800,
             height=400,
-            title=f'{numerator} / {denominator} by Sector'
+            title=f'{numerator} / {denominator} by Sector Over Time'
         ))
 
-        quantile_chart_data = chart_data.copy()
-        quantile_chart_data['Quantile'] = pd.qcut(quantile_chart_data['Ratio'], num_qcuts, labels=False) + 1
-        quantile_chart_data['Quantile'] = quantile_chart_data['Quantile'].astype(str)
+            
+        # Calculate quantile chart data
+        quantile_chart_data = filtered_data.copy()
+        quantile_chart_data['Quantile'] = pd.qcut(quantile_chart_data['Numeric_Numerator'], q=num_qcuts, labels=False) + 1
+        quantile_chart_data = quantile_chart_data.groupby(['Date', 'Quantile']).agg({'Numeric_Numerator': 'sum', 'Numeric_Denominator': 'sum'})
+        quantile_chart_data['Ratio'] = quantile_chart_data['Numeric_Numerator'] / quantile_chart_data['Numeric_Denominator']
+        quantile_chart_data = quantile_chart_data.reset_index()
 
-        quantile_chart = alt.Chart(quantile_chart_data).mark_line().encode(
+        st.altair_chart(alt.Chart(quantile_chart_data).mark_line().encode(
             x=alt.X('Date:T', title='Date', axis=alt.Axis(format=("%b %Y"), labelAngle=-45)),
-            y=alt.Y('sum(Ratio)', title=f'Sum of {numerator} / Sum of {denominator}'),
+            y=alt.Y('Ratio:Q', title=f'{numerator} / {denominator}'),
             color=alt.Color('Quantile:N', title='Quantile'),
-            tooltip=['Date:T', 'Quantile:N', alt.Tooltip(f'sum(Ratio):Q', format='.2f')]
+            tooltip=['Date:T', 'Quantile:N', 'Ratio:Q']
         ).properties(
             width=800,
             height=400,
-            title=f'{numerator} / {denominator} by Quantile'
-        )
+            title=f'{numerator} / {denominator} by Quantile Over Time'
+        ))
+        
 
-        st.altair_chart(quantile_chart)
 
-# Update and display charts based on selections
+
+
+# Update the charts
 update_charts()
+
+
+# Add download buttons for chart dataframes
+# if filtered_data is not None:
+#     st.markdown(download_data(filtered_data, 'Raw Data'), unsafe_allow_html=True)
+
+
+
+with st.expander("Download datasets:", expanded=True):
+    if st.button('Prepare sector chart data'):
+        if chart_data is not None:
+            st.markdown(download_data(chart_data, 'VM Dashboard Sector Chart Data'), unsafe_allow_html=True)
+    
+    if st.button('Prepare quantile chart data'):        
+        if quantile_chart_data is not None:
+            st.markdown(download_data(quantile_chart_data, 'VM Dashboard Quantile Chart Data'), unsafe_allow_html=True)
+
+    if st.button('Prepare raw company data'):
+        if filtered_data is not None:
+            st.markdown(download_data(filtered_data, 'VM Dashboard Raw Company Data'), unsafe_allow_html=True)
