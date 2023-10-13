@@ -1,0 +1,7 @@
+        # Add tooltips to data points
+        mplcursors.cursor(line).connect(
+            "add",
+            lambda sel: sel.annotation.set_text(
+                f"X: {sel.target[0]:.2f}\nY: {sel.target[1]:.2f}\nLegend: {sel.artist.get_label()}"
+            )
+        )
