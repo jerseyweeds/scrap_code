@@ -1,34 +1,35 @@
+
 import xml.etree.ElementTree as ET
 
-def parse_xml_recursively(element, parent_id, mermaid_structure, id_counter):
-    # Increment the counter for unique ID
-    current_id = id_counter[0]
-    id_counter[0] += 1
-
+def parse_xml_recursively(element, parent_tag, mermaid_structure):
     # Get the current tag name
-    current_tag = f"{element.tag}{current_id}"
+    current_tag = element.tag
 
     # Add to the mermaid structure
-    if parent_id is not None:
-        mermaid_structure.append(f"{parent_id} --> {current_tag}")
+    if parent_tag:
+        connection = f"{parent_tag} --> {current_tag}"
+        if connection not in mermaid_structure:
+            mermaid_structure.append(connection)
 
     # Process children
     for child in element:
-        parse_xml_recursively(child, current_tag, mermaid_structure, id_counter)
+        parse_xml_recursively(child, current_tag, mermaid_structure)
 
 def xml_to_mermaid(xml_path):
     # Parse the XML file
     tree = ET.parse(xml_path)
     root = tree.getroot()
 
-    # Initialize mermaid structure and a counter for unique IDs
+    # Initialize mermaid structure
     mermaid_structure = ["graph TD"]
-    id_counter = [0]
 
     # Parse recursively
-    parse_xml_recursively(root, None, mermaid_structure, id_counter)
+    parse_xml_recursively(root, "", mermaid_structure)
 
-    return "\n".join(mermaid_structure)
+    # Ensure distinct connections
+    distinct_structure = list(set(mermaid_structure))
+
+    return "\n".join(distinct_structure)
 
 # Replace 'your_file.xml' with your actual XML file path
 xml_file_path = 'your_file.xml'
