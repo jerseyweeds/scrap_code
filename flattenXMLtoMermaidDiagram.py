@@ -26,10 +26,18 @@ def xml_to_dataframe(xml_path):
 
     # Convert to DataFrame
     df = pd.DataFrame(relationships, columns=['Parent', 'Child'])
-
+    #df.drop_duplicates(inplace=True)
+    
     return df
 
-# Replace 'your_file.xml' with your actual XML file path
-xml_file_path = 'your_file.xml'
+
+xml_file_path = 'analytics.index.20240102.xml'
 df = xml_to_dataframe(xml_file_path)
-print(df)
+
+df.drop_duplicates(inplace=True)
+
+df.reset_index(drop=True, inplace=True)
+df['value']= 1
+output_file = 'structure_' + xml_file_path + '.csv'
+df.to_csv(output_file, sep=',', index=False)
+df.to_clipboard()
