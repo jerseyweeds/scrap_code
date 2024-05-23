@@ -1,5 +1,7 @@
 import xml.etree.ElementTree as ET
 import csv
+import glob
+import os
 
 def stream_xml(xml_path, csv_output):
     with open(csv_output, mode='w', newline='') as csv_file:
@@ -25,14 +27,20 @@ def stream_xml(xml_path, csv_output):
                 parent_stack.pop()
                 elem.clear()  # Clear the element to free up memory
 
-# Define paths
-xml_file_path = 'analytics.index.20240102.xml'
-output_file = 'structure_' + xml_file_path + '.csv'
+def process_all_xml_files(folder_path):
+    # Search for all files matching *analytics*.xml in the given folder
+    xml_files = glob.glob(os.path.join(folder_path, '*analytics*.xml'))
+    
+    for xml_file in xml_files:
+        # Define output file path
+        output_file = 'structure_' + os.path.basename(xml_file) + '.csv'
+        
+        # Stream the XML and write to CSV
+        stream_xml(xml_file, output_file)
+        print(f"Processed {xml_file} and outputted to {output_file}")
 
-# Stream the XML and write to CSV
-stream_xml(xml_file_path, output_file)
+# Define the folder path
+folder_path = 'path/to/your/folder'
 
-# If you need to work with the CSV as a dataframe, you can load it later
-# import pandas as pd
-# df = pd.read_csv(output_file)
-# df.to_clipboard()
+# Process all XML files in the folder
+process_all_xml_files(folder_path)
