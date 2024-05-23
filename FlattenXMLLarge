@@ -4,6 +4,10 @@ import glob
 import os
 
 def stream_xml(xml_path, csv_output):
+    # Check if the output file exists and delete it
+    if os.path.exists(csv_output):
+        os.remove(csv_output)
+
     with open(csv_output, mode='w', newline='') as csv_file:
         csv_writer = csv.writer(csv_file)
         csv_writer.writerow(['Parent', 'Child', 'value'])
