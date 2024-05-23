@@ -10,11 +10,14 @@ def stream_xml(xml_path, csv_output):
 
     with open(csv_output, mode='w', newline='') as csv_file:
         csv_writer = csv.writer(csv_file)
-        csv_writer.writerow(['Parent', 'Child', 'value'])
+        csv_writer.writerow(['Filename', 'Parent', 'Child', 'value'])
 
         # Initialize the parent stack and a set to track unique relationships
         parent_stack = []
         seen_relationships = set()
+
+        # Extract filename from xml_path
+        filename = os.path.basename(xml_path)
 
         # Use iterparse to stream the XML
         context = ET.iterparse(xml_path, events=('start', 'end'))
@@ -22,7 +25,7 @@ def stream_xml(xml_path, csv_output):
         for event, elem in context:
             if event == 'start':
                 if parent_stack:
-                    relationship = (parent_stack[-1], elem.tag, 1)
+                    relationship = (filename, parent_stack[-1], elem.tag, 1)
                     if relationship not in seen_relationships:
                         csv_writer.writerow(relationship)
                         seen_relationships.add(relationship)
