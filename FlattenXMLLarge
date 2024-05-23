@@ -1,0 +1,34 @@
+import xml.etree.ElementTree as ET
+import csv
+
+def stream_xml(xml_path, csv_output):
+    with open(csv_output, mode='w', newline='') as csv_file:
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(['Parent', 'Child', 'value'])
+
+        # Initialize the parent stack
+        parent_stack = []
+
+        # Use iterparse to stream the XML
+        context = ET.iterparse(xml_path, events=('start', 'end'))
+
+        for event, elem in context:
+            if event == 'start':
+                if parent_stack:
+                    csv_writer.writerow([parent_stack[-1], elem.tag, 1])
+                parent_stack.append(elem.tag)
+            elif event == 'end':
+                parent_stack.pop()
+                elem.clear()  # Clear the element to free up memory
+
+# Define paths
+xml_file_path = 'analytics.index.20240102.xml'
+output_file = 'structure_' + xml_file_path + '.csv'
+
+# Stream the XML and write to CSV
+stream_xml(xml_file_path, output_file)
+
+# If you need to work with the CSV as a dataframe, you can load it later
+# import pandas as pd
+# df = pd.read_csv(output_file)
+# df.to_clipboard()
